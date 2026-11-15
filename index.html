@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>랜덤 자리 배치기</title>
+  <style>
+    :root {
+      --primary-color: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-color: #0f172a;
+      --muted: #64748b;
+      --seat-bg: #f8fafc;
+      --seat-border: #e2e8f0;
+      --stage-bg: #e2e8f0;
+      --stage-text: #475569;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: clamp(1.8rem, 2vw, 2.3rem);
+      text-align: center;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 720px;
+      background: var(--card-bg);
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+      padding: 18px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-color);
+    }
+
+    input[type="number"] {
+      width: 90px;
+      padding: 10px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 1rem;
+      text-align: center;
+      background: white;
+      outline: none;
+    }
+
+    input[type="number"]:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+    }
+
+    button {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.15s ease;
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .board-container {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .stage {
+      width: min(60%, 480px);
+      background: var(--stage-bg);
+      color: var(--stage-text);
+      text-align: center;
+      padding: 12px 18px;
+      border-radius: 10px;
+      margin-bottom: 22px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.4);
+    }
+
+    .grid {
+      width: 100%;
+      display: grid;
+      gap: 12px;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .seat {
+      min-height: 72px;
+      background: var(--card-bg);
+      border: 2px solid var(--seat-border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--text-color);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      user-select: none;
+    }
+
+    .seat.empty {
+      background: #f1f5f9;
+      border-style: dashed;
+      color: #94a3b8;
+    }
+
+    .seat.shuffling {
+      animation: pulse 0.2s infinite alternate;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+    }
+
+    @keyframes pulse {
+      from {
+        transform: scale(0.98);
+      }
+      to {
+        transform: scale(1.02);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎲 자리 배치 프로그램</h1>
+
+  <div class="controls">
+    <div class="input-group">
+      <label for="totalPeople">총 인원:</label>
+      <input type="number" id="totalPeople" value="24" min="1" max="100" />
+    </div>
+
+    <div class="input-group">
+      <label for="cols">열 수(가로):</label>
+      <input type="number" id="cols" value="6" min="1" max="10" />
+    </div>
+
+    <button type="button" id="shuffleBtn">자리 섞기</button>
+  </div>
+
+  <div class="board-container">
+    <div class="stage">칠판 / 교탁</div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <script>
+    const totalPeopleInput = document.getElementById('totalPeople');
+    const colsInput = document.getElementById('cols');
+    const grid = document.getElementById('grid');
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function generateSeats() {
+      const total = clamp(parseInt(totalPeopleInput.value, 10) || 0, 1, 100);
+      const cols = clamp(parseInt(colsInput.value, 10) || 1, 1, 10);
+
+      totalPeopleInput.value = total;
+      colsInput.value = cols;
+
+      grid.style.gridTemplateColumns = `repeat(${cols}, minmax(70px, 1fr))`;
+      grid.innerHTML = '';
+
+      for (let i = 1; i <= total; i++) {
+        const seat = document.createElement('div');
+        seat.className = 'seat';
+        seat.textContent = `${i}번`;
+        grid.appendChild(seat);
+      }
+    }
+
+    function shuffleArray(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function mixSeats() {
+      const total = clamp(parseInt(totalPeopleInput.value, 10) || 0, 1, 100);
+      const seats = Array.from(document.querySelectorAll('.seat'));
+
+      if (seats.length === 0 || seats.length !== total) {
+        generateSeats();
+      }
+
+      const finalOrder = shuffleArray(Array.from({ length: total }, (_, i) => i + 1));
+      const currentSeats = Array.from(document.querySelectorAll('.seat'));
+
+      let count = 0;
+      const interval = setInterval(() => {
+        currentSeats.forEach((seat) => {
+          seat.classList.add('shuffling');
+          const randomNum = Math.floor(Math.random() * total) + 1;
+          seat.textContent = `${randomNum}번`;
+        });
+
+        count++;
+        if (count >= 12) {
+          clearInterval(interval);
+          currentSeats.forEach((seat, index) => {
+            seat.classList.remove('shuffling');
+            seat.textContent = `${finalOrder[index]}번`;
+          });
+        }
+      }, 80);
+    }
+
+    document.getElementById('shuffleBtn').addEventListener('click', mixSeats);
+    totalPeopleInput.addEventListener('change', generateSeats);
+    colsInput.addEventListener('change', generateSeats);
+
+    generateSeats();
+  </script>
+</body>
+</html>
